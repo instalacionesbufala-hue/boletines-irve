@@ -8,10 +8,10 @@
 import { generarExpediente, valoresTecnicos, calcular, distribuidoraPorCups,
          mapaMtd, mapaAnexoIve, mapaUnifilar, mapaSolicitud, mapaAutorizacion,
          mapaAnexoGaraje, celdasCie, validarCups, esEmpresa,
-         aplicarOpciones, aplicarExtras } from "./motor.js?v=202611191800"
-import { identificador, estado } from "./cie.js?v=202611191800"
+         aplicarOpciones, aplicarExtras } from "./motor.js?v=202611191915"
+import { identificador, estado } from "./cie.js?v=202611191915"
 import { buscarCodigoPostal, claveCalle, codigoUnicoDe, codigosDe, esCodigoPostal,
-         indiceMunicipios, municipioDe, normalizar } from "./cp.js?v=202611191800";
+         indiceMunicipios, municipioDe, normalizar } from "./cp.js?v=202611191915";
 
 const $ = (s, raiz = document) => raiz.querySelector(s);
 const $$ = (s, raiz = document) => [...raiz.querySelectorAll(s)];
@@ -78,14 +78,14 @@ function guardarAjustes() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    CFG = await (await fetch("config-inicial.json?v=202611191800")).json();
+    CFG = await (await fetch("config-inicial.json?v=202611191915")).json();
   } catch (e) {
     $("#cargando").innerHTML = "<strong>No he podido cargar la configuración.</strong> "
       + "Recarga la página.";
     return;
   }
   try {
-    const municipios = await (await fetch("datos/municipios-madrid.json?v=202611191800")).json();
+    const municipios = await (await fetch("datos/municipios-madrid.json?v=202611191915")).json();
     INDICE_MUNICIPIOS = indiceMunicipios(municipios);
   } catch (e) {
     INDICE_MUNICIPIOS = new Map();   // se sigue pudiendo trabajar sin la lista
@@ -639,6 +639,7 @@ form.addEventListener("submit", async e => {
   if (!r.error) {
     aprenderCodigosPostales();
     guardarExpediente(r.carpeta, datos, r.identificador);
+    avisarPanel(r.identificador);   // sin esperar: generar no depende del panel
   }
 });
 
@@ -717,6 +718,7 @@ function mostrarResultado(r, datos) {
 $("#btn-limpiar").addEventListener("click", () => {
   if (!confirm("¿Vaciar todos los campos del formulario?")) return;
   vaciarFormulario();
+  olvidarObraPanel();
 });
 
 function vaciarFormulario() {
@@ -769,7 +771,53 @@ function cargarDesdeEnlace() {
   vaciarFormulario();
   cargarDatos(o.campos, false);
   guardarBorrador();
-  avisoObra("Datos de la obra " + (o.num || "") + " cargados desde el panel.", Array.isArray(o.avisos) ? o.avisos : []);
+  olvidarObraPanel();
+  if (o.num && o.firma && /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(o.ret || "")) {
+    try { sessionStorage.setItem(CLAVE_OBRA_PANEL, JSON.stringify({ num: o.num, firma: o.firma, ret: o.ret })); } catch (e) { /* sin almacenamiento: no se avisará */ }
+  }
+  avisoObra("Datos de la obra " + (o.num || "") + " cargados desde el panel."
+    + (o.firma ? " Al generar los documentos, saldrá sola de la lista de CIE pendientes." : ""),
+    Array.isArray(o.avisos) ? o.avisos : []);
+}
+
+/* Al generar los documentos de una obra abierta desde el panel, se avisa al
+   panel para que la dé por hecha (origen AUTOMÁTICO). Solo viajan el número de
+   obra, la firma que puso el panel en el enlace y el identificador del CIE:
+   ningún dato del cliente. Si falla, se dice y se marca a mano en el panel. */
+const CLAVE_OBRA_PANEL = "irve-obra-panel";
+function obraPanel() {
+  try { return JSON.parse(sessionStorage.getItem(CLAVE_OBRA_PANEL) || "null"); } catch (e) { return null; }
+}
+function olvidarObraPanel() {
+  try { sessionStorage.removeItem(CLAVE_OBRA_PANEL); } catch (e) { /* nada */ }
+}
+async function avisarPanel(identificador) {
+  const o = obraPanel();
+  if (!o) return;
+  const pinta = (texto, mal) => {
+    const caja = $("#resultado");
+    let p = $("#aviso-panel", caja);
+    if (!p) { p = document.createElement("p"); p.id = "aviso-panel"; p.className = "pista"; caja.append(p); }
+    p.textContent = texto;
+    p.classList.toggle("marca-no", !!mal);
+  };
+  pinta("Avisando al panel de que el CIE de " + o.num + " está hecho…");
+  try {
+    const resp = await fetch(o.ret, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },   // sin consulta previa (CORS)
+      body: JSON.stringify({ accion: "cieDocumentosGenerados", num: o.num, firma: o.firma, identificador: identificador || "" })
+    });
+    const r = await resp.json();
+    if (r && r.ok) {
+      olvidarObraPanel();
+      pinta("✓ " + o.num + (r.cambiadas ? " sale de la lista de CIE pendientes del panel." : " ya estaba como hecho en el panel."));
+    } else {
+      pinta("No he podido marcar " + o.num + " como hecho en el panel (" + ((r && r.error) || "respuesta sin datos") + "). Márcalo a mano en el panel.", true);
+    }
+  } catch (err) {
+    pinta("No he podido avisar al panel (" + String(err).slice(0, 120) + "). Marca " + o.num + " a mano en el panel.", true);
+  }
 }
 
 function avisoObra(texto, faltan) {
@@ -1255,7 +1303,7 @@ let CAMPOS_IMPRESOS = null;
 async function camposDelImpreso(archivo) {
   if (CAMPOS_IMPRESOS === null) {
     try {
-      CAMPOS_IMPRESOS = await (await fetch("plantillas/campos.json?v=202611191800")).json();
+      CAMPOS_IMPRESOS = await (await fetch("plantillas/campos.json?v=202611191915")).json();
     } catch (e) {
       CAMPOS_IMPRESOS = {};
     }
@@ -1277,7 +1325,7 @@ let REJILLA_CIE = null;
 
 async function mapaCie() {
   if (MAPA_CIE === null) {
-    try { MAPA_CIE = await (await fetch("plantillas/cie_mapa.json?v=202611191800")).json(); }
+    try { MAPA_CIE = await (await fetch("plantillas/cie_mapa.json?v=202611191915")).json(); }
     catch (e) { MAPA_CIE = {}; }
   }
   return MAPA_CIE;
