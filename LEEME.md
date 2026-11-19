@@ -156,6 +156,27 @@ calibre, la misma sección de arriba y 6 kA de poder de corte. Con
 **Guardar estos valores como predeterminados** se queda puesto para los
 siguientes.
 
+## Vivienda unifamiliar: el esquema 4a
+
+Al elegir el **esquema 4a** el formulario se pone solo en modo unifamiliar, y
+te lo dice debajo del desplegable:
+
+| | Lo de siempre | Con el 4a |
+|---|---|---|
+| Plaza de garaje y planta | lo que escribas / la predeterminada | **vacías** |
+| Contador ubicado en | Local | **Individual (CPM)** |
+| Garaje | COMUNITARIO | **INDIVIDUAL** |
+| Origen de la línea | Centralización de contadores | **Cuadro general de mando y protección de la vivienda** |
+| Fila *Ubicación* del MTD | la de Configuración | **CPM-Armario Fachada** |
+
+El contador, el garaje y el origen son una propuesta: si ese caso es distinto,
+los cambias a mano. La plaza y la planta siguen a la vista por si alguna vez
+hacen falta.
+
+Si eliges el 4a por error y vuelves a otro esquema, **todo vuelve a como
+estaba**. Y los expedientes que ya tenías hechos no cambian: se abren y se
+regeneran como salieron.
+
 ## El municipio y el código postal
 
 El desplegable de **Localidad** trae los **179 municipios de la Comunidad de

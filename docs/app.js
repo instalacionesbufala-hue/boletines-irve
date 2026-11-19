@@ -8,10 +8,10 @@
 import { generarExpediente, valoresTecnicos, calcular, distribuidoraPorCups,
          mapaMtd, mapaAnexoIve, mapaUnifilar, mapaSolicitud, mapaAutorizacion,
          mapaAnexoGaraje, celdasCie, validarCups, esEmpresa,
-         aplicarOpciones, aplicarExtras } from "./motor.js?v=202611191915"
-import { identificador, estado } from "./cie.js?v=202611191915"
+         aplicarOpciones, aplicarExtras } from "./motor.js?v=202611192115"
+import { identificador, estado } from "./cie.js?v=202611192115"
 import { buscarCodigoPostal, claveCalle, codigoUnicoDe, codigosDe, esCodigoPostal,
-         indiceMunicipios, municipioDe, normalizar } from "./cp.js?v=202611191915";
+         indiceMunicipios, municipioDe, normalizar } from "./cp.js?v=202611192115";
 
 const $ = (s, raiz = document) => raiz.querySelector(s);
 const $$ = (s, raiz = document) => [...raiz.querySelectorAll(s)];
@@ -78,14 +78,14 @@ function guardarAjustes() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    CFG = await (await fetch("config-inicial.json?v=202611191915")).json();
+    CFG = await (await fetch("config-inicial.json?v=202611192115")).json();
   } catch (e) {
     $("#cargando").innerHTML = "<strong>No he podido cargar la configuración.</strong> "
       + "Recarga la página.";
     return;
   }
   try {
-    const municipios = await (await fetch("datos/municipios-madrid.json?v=202611191915")).json();
+    const municipios = await (await fetch("datos/municipios-madrid.json?v=202611192115")).json();
     INDICE_MUNICIPIOS = indiceMunicipios(municipios);
   } catch (e) {
     INDICE_MUNICIPIOS = new Map();   // se sigue pudiendo trabajar sin la lista
@@ -115,6 +115,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   restaurarBorrador();
   cargarDesdeEnlace();
   window.addEventListener("hashchange", cargarDesdeEnlace);
+  anotarEsquema();
   ajustarRepresentante();
   copiarDireccionALaComunidad();
   avisarCups();
@@ -461,6 +462,123 @@ $("#incluir_anexo_garaje").addEventListener("change", e => {
   if (e.target.checked) copiarDireccionALaComunidad();
 });
 
+/* ══════════════ lo que cambia con el esquema ══════════════ */
+
+/* Hay esquemas que no son solo un número en el CIE: cambian el expediente. El
+   4a es el de vivienda unifamiliar, y una casa no tiene plaza numerada ni
+   planta de garaje, tiene el contador en un CPM y el garaje es suyo.
+
+   Qué cambia cada esquema no está aquí: se declara en la configuración, en
+   `por_esquema`, igual que `por_seccion` declara qué protecciones van con cada
+   sección. Cada regla dice qué campos se vacían (`vaciar`), qué valores se
+   proponen (`poner`), qué se marca distinto en el MTD (`mtd`) y qué nota se
+   enseña (`nota`). */
+const reglaDe = esquema => (CFG.por_esquema || {})[esquema] || null;
+
+/* El esquema cuya regla está puesta ahora mismo en el formulario. Hace falta
+   para poder deshacerla: el desplegable solo dice a cuál se va, no de cuál se
+   viene. */
+let ESQUEMA_PUESTO = "";
+
+/* El valor «de siempre» de un campo: su predeterminado técnico si lo tiene
+   -la planta- y, si no, el que trae el formulario recién abierto. */
+function valorHabitual(nombre) {
+  if (CAMPOS_TECNICOS.includes(nombre) && CFG.tecnica[nombre] != null) {
+    return CFG.tecnica[nombre];
+  }
+  const c = form.elements[nombre];
+  if (!c) return "";
+  if (c.options) {
+    const inicial = [...c.options].find(o => o.defaultSelected) || c.options[0];
+    return inicial ? inicial.value : "";
+  }
+  return c.defaultValue || "";
+}
+
+/* Pone un valor, salvo que sea un desplegable que no lo tiene: una regla mal
+   escrita no debe dejar el campo en blanco. */
+function ponerCampo(nombre, valor) {
+  const c = form.elements[nombre];
+  if (!c) return;
+  if (c.options && ![...c.options].some(o => o.value === String(valor))) return;
+  c.value = valor;
+}
+
+function pintarNotaEsquema() {
+  const caja = $("#aviso-esquema");
+  if (!caja) return;
+  const regla = reglaDe(form.elements.esquema.value);
+  caja.textContent = regla ? (regla.nota || "") : "";
+  caja.hidden = !caja.textContent;
+}
+
+/* Al cambiar de esquema. Primero se deshace lo que puso el anterior y luego se
+   pone lo del nuevo: así, elegir el 4a por error y volver al 2 deja el
+   formulario como recién abierto, y no un garaje comunitario sin planta y con
+   el contador en un CPM. */
+function cambiarDeEsquema(nuevo) {
+  const anterior = reglaDe(ESQUEMA_PUESTO);
+  if (anterior) {
+    [...(anterior.vaciar || []), ...Object.keys(anterior.poner || {})]
+      .forEach(n => ponerCampo(n, valorHabitual(n)));
+    Object.keys(anterior.mtd || {}).forEach(g => {
+      if (form.elements["mtd_" + g]) form.elements["mtd_" + g].value = "";
+    });
+  }
+  const regla = reglaDe(nuevo);
+  if (regla) {
+    (regla.vaciar || []).forEach(n => {
+      if (form.elements[n]) form.elements[n].value = "";
+    });
+    Object.entries(regla.poner || {}).forEach(([n, v]) => ponerCampo(n, v));
+    Object.entries(regla.mtd || {}).forEach(([g, v]) => {
+      if (form.elements["mtd_" + g]) form.elements["mtd_" + g].value = v;
+    });
+  }
+  ESQUEMA_PUESTO = nuevo;
+  pintarNotaEsquema();
+}
+
+/* Borra lo que el expediente marcaba por su cuenta en el MTD.
+
+   Hay que hacerlo a mano: `form.reset()` no vacía un campo oculto -para el
+   navegador su valor de ahora ES su valor inicial-, así que al vaciar el
+   formulario después de un 4a el siguiente expediente, del esquema que fuera,
+   seguía marcando «CPM-Armario Fachada» en el MTD sin que se viera en ningún
+   sitio. */
+function olvidarLoDelMtd() {
+  $$('input[type="hidden"][name^="mtd_"]').forEach(c => { c.value = ""; });
+}
+
+/* Una obra que llega del panel trae lo que el panel sabe, que puede ser el
+   esquema y poco más. Si ese esquema tiene regla -el 4a, vivienda
+   unifamiliar-, lo que el panel NO ha mandado se pone como manda la regla: si
+   no, una unifamiliar abierta desde el panel saldría con garaje COMUNITARIO y
+   planta «-1», que es justo lo que la regla evita. Lo que el panel sí manda
+   se respeta siempre. */
+function completarConElEsquema(campos) {
+  const regla = reglaDe(form.elements.esquema.value);
+  if (!regla) return;
+  const trae = n => Object.prototype.hasOwnProperty.call(campos || {}, n);
+  (regla.vaciar || []).forEach(n => {
+    if (!trae(n) && form.elements[n]) form.elements[n].value = "";
+  });
+  Object.entries(regla.poner || {}).forEach(([n, v]) => { if (!trae(n)) ponerCampo(n, v); });
+  Object.entries(regla.mtd || {}).forEach(([g, v]) => {
+    const c = form.elements["mtd_" + g];
+    if (c && !trae("mtd_" + g)) c.value = v;
+  });
+  anotarEsquema();
+}
+
+/* Cuando el esquema llega ya puesto -un borrador, un expediente que se
+   reabre, el formulario recién vaciado- no se aplica nada: los datos que
+   vienen mandan. Solo se apunta cuál es y se enseña su nota. */
+function anotarEsquema() {
+  ESQUEMA_PUESTO = form.elements.esquema.value;
+  pintarNotaEsquema();
+}
+
 /* ══════════════ cálculo en vivo ══════════════ */
 
 function recalcular() {
@@ -490,6 +608,7 @@ function recalcular() {
 form.addEventListener("input", e => {
   recalcular();
   if (e.target.name === "cups") { ponerDistribuidora(); avisarCups(); }
+  if (e.target.name === "esquema") cambiarDeEsquema(e.target.value);
   if (/^titular_(nif|nombre)$|^repre_/.test(e.target.name || "")) ajustarRepresentante();
   if (e.target.name in COMUNIDAD_COPIA) e.target.dataset.tocado = "1";
   else if (/^(empl|titular)_(localidad|cp|provincia)$/.test(e.target.name || "")) {
@@ -550,6 +669,12 @@ function restaurarBorrador() {
 
 function cargarDatos(d, avisar = true) {
   aplicarValoresTecnicos(d);
+  // Lo que el expediente marca por su cuenta en el MTD. Uno hecho antes de que
+  // esto existiera no trae la clave: hay que vaciarla a mano, o se quedaría la
+  // del expediente que hubiera en pantalla.
+  olvidarLoDelMtd();
+  // Lo que el esquema de ESTE expediente deja en blanco se queda en blanco.
+  const enBlanco = (reglaDe(d.esquema) || {}).vaciar || [];
   Object.entries(d).forEach(([k, v]) => {
     const campo = form.elements[k];
     if (!campo || campo.type === "checkbox") return;
@@ -558,8 +683,11 @@ function cargarDatos(d, avisar = true) {
     // que ese campo existiera -la marca y el modelo del cargador-, que traen
     // la clave escrita y vacia. En un expediente antiguo, el predeterminado es
     // el que se guardo con el, asi que sigue saliendo lo que salio aquel dia.
+    //
+    // Salvo los que el esquema vacía a propósito: la planta de una vivienda
+    // unifamiliar llega vacía porque no hay planta, y no debe volver el «-1».
     const vacio = v == null || String(v).trim() === "";
-    campo.value = (vacio && CAMPOS_TECNICOS.includes(k))
+    campo.value = (vacio && CAMPOS_TECNICOS.includes(k) && !enBlanco.includes(k))
       ? (CFG.tecnica[k] ?? "")
       : (v ?? "");
   });
@@ -577,6 +705,7 @@ function cargarDatos(d, avisar = true) {
   $("#bloque-emplazamiento").hidden = mismo;
   ponerDistribuidora();
   avisarCups();
+  anotarEsquema();
   ajustarRepresentante();
   // Lo que venga guardado manda: si trae algo escrito, no se pisa.
   for (const suyo of Object.keys(COMUNIDAD_COPIA)) {
@@ -729,6 +858,7 @@ function vaciarFormulario() {
     CFG.empresa = empresaElegida();
   }
   form.reset();
+  olvidarLoDelMtd();
   pintarSelectorEmpresa();
   pintarConfigEmpresa();
   guardarAjustes();
@@ -744,6 +874,7 @@ function vaciarFormulario() {
   ponerFechaHoy();
   $("#resultado").hidden = true;
   avisarCups();
+  anotarEsquema();
   recalcular();
 }
 
@@ -770,6 +901,7 @@ function cargarDesdeEnlace() {
   if (!o || typeof o.campos !== "object") return;
   vaciarFormulario();
   cargarDatos(o.campos, false);
+  completarConElEsquema(o.campos);
   guardarBorrador();
   olvidarObraPanel();
   if (o.num && o.firma && /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(o.ret || "")) {
@@ -1230,9 +1362,12 @@ $("#btn-empresa-defecto").addEventListener("click", () => {
 });
 
 $("#btn-guardar-preset").addEventListener("click", () => {
+  // Lo que el esquema de ahora deja en blanco no es un predeterminado: la
+  // planta vacía de una unifamiliar no debe pasar a ser la de todos.
+  const enBlanco = (reglaDe(form.elements.esquema.value) || {}).vaciar || [];
   CAMPOS_TECNICOS.forEach(k => {
     const c = form.elements[k];
-    if (c) CFG.tecnica[k] = c.value;
+    if (c && !enBlanco.includes(k)) CFG.tecnica[k] = c.value;
   });
   guardarAjustes();
   avisar("#aviso-preset", "Guardado como valores por defecto.");
@@ -1303,7 +1438,7 @@ let CAMPOS_IMPRESOS = null;
 async function camposDelImpreso(archivo) {
   if (CAMPOS_IMPRESOS === null) {
     try {
-      CAMPOS_IMPRESOS = await (await fetch("plantillas/campos.json?v=202611191915")).json();
+      CAMPOS_IMPRESOS = await (await fetch("plantillas/campos.json?v=202611192115")).json();
     } catch (e) {
       CAMPOS_IMPRESOS = {};
     }
@@ -1325,7 +1460,7 @@ let REJILLA_CIE = null;
 
 async function mapaCie() {
   if (MAPA_CIE === null) {
-    try { MAPA_CIE = await (await fetch("plantillas/cie_mapa.json?v=202611191915")).json(); }
+    try { MAPA_CIE = await (await fetch("plantillas/cie_mapa.json?v=202611192115")).json(); }
     catch (e) { MAPA_CIE = {}; }
   }
   return MAPA_CIE;

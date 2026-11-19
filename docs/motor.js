@@ -5,9 +5,9 @@
  * Node para las pruebas.
  */
 
-import { t, coma, punto, mayus, sinAcentos, limpiarParaPdf } from "./util.js?v=202611191915";
-import { rellenarPdf } from "./relleno.js?v=202611191915";
-import { generarCie } from "./cie.js?v=202611191915";
+import { t, coma, punto, mayus, sinAcentos, limpiarParaPdf } from "./util.js?v=202611192115";
+import { rellenarPdf } from "./relleno.js?v=202611192115";
+import { generarCie } from "./cie.js?v=202611192115";
 
 export const MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
   "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
@@ -974,7 +974,33 @@ const DOCUMENTOS = [
    Solo lo usa herramientas/comparar.py: los dos motores aplanan con librerias
    distintas y el dibujo no sale byte a byte igual (Python pierde algun acento
    y recorta alguna palabra larga), asi que la comparacion se hace antes. */
+/* Lo que ESTE expediente marca distinto de lo fijado en Configuración.
+
+   En el MTD hay filas donde solo va una marca -la ubicación de los contadores,
+   el emplazamiento, el tipo de puesta a tierra-, y cuál se marca se elige una
+   vez en Configuración. Pero una vivienda unifamiliar tiene el contador en un
+   CPM, no en una centralización, y eso no es un ajuste del instalador: es de
+   ese expediente. Así que el expediente puede traer `mtd_<grupo>` y manda él.
+
+   Viaja en los datos, no se deduce del esquema, por dos razones: el motor de
+   Python no ve el formulario, y un expediente hecho antes de que esto
+   existiera no lo trae, de modo que su MTD sale como salió.
+
+   Si lo que trae no es una opción de ese grupo, se ignora. */
+export function conLoDelExpediente(cfg, datos) {
+  const grupos = (cfg.opciones_excluyentes || {})["MTD.pdf"] || {};
+  let fijos = null;
+  for (const [clave, g] of Object.entries(grupos)) {
+    const suya = t((datos || {})["mtd_" + clave]);
+    if (!suya || !Object.prototype.hasOwnProperty.call(g.opciones || {}, suya)) continue;
+    fijos = fijos || { ...(cfg.valores_fijos_mtd || {}) };
+    fijos[clave] = suya;
+  }
+  return fijos ? { ...cfg, valores_fijos_mtd: fijos } : cfg;
+}
+
 export async function generarExpediente(datos, cfg, cargarPlantilla, lib, opciones) {
+  cfg = conLoDelExpediente(cfg, datos);
   const aplanarMtd = !(opciones && opciones.aplanar === false);
   const tec = valoresTecnicos(datos, cfg);
   const calc = calcular(datos, tec, cfg);

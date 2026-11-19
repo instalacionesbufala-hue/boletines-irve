@@ -60,6 +60,13 @@ const casos = {
   'empresa por el nombre, sin NIF': { ...base,
     titular_nif: '', titular_nombre: 'COMUNIDAD DE PROPIETARIOS RÍO 10',
     titular_apellido1: '', titular_apellido2: '' },
+  // Vivienda unifamiliar: sin plaza ni planta, y el MTD marca el CPM porque
+  // lo trae el expediente, no porque lo diga Configuración
+  'esquema 4a, vivienda unifamiliar': { ...base, esquema: '4a',
+    plaza_numero: '', plaza_planta: '', tipo_garaje: 'INDIVIDUAL',
+    ubicacion_contador: 'Individual (CPM)',
+    origen_linea: 'CUADRO GENERAL DE MANDO Y PROTECCIÓN DE LA VIVIENDA',
+    mtd_ubicacion: 'CPM-Armario Fachada' },
   'config sin empresa': { ...base, __sinEmpresa: true },
 };
 

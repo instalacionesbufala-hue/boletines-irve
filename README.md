@@ -239,6 +239,51 @@ cada impreso, dibuja cada página a imagen y apunta de cada campo dónde está y
 qué tamaño tiene, su página, el texto que tiene al lado y si lo rellena la
 aplicación. Hay que volver a ejecutarlo si Industria cambia un impreso.
 
+### Lo que cambia con el esquema: `por_esquema`
+
+Hay esquemas que no son solo un número en el CIE. El 4a es el de vivienda
+unifamiliar, y una casa no tiene plaza numerada ni planta de garaje, tiene el
+contador en un CPM y el garaje es suyo.
+
+Qué cambia cada esquema se **declara** en la configuración, en `por_esquema`,
+hermana de `por_seccion`:
+
+| Clave | Qué hace |
+|---|---|
+| `vaciar` | campos del formulario que se dejan en blanco |
+| `poner` | valores que se proponen; se pueden cambiar a mano |
+| `mtd` | qué se marca en un grupo de opciones excluyentes del MTD, solo en ese expediente |
+| `nota` | lo que se enseña bajo el desplegable, para que nada cambie callando |
+
+Añadir otro esquema con sus ajustes no exige tocar el programa.
+
+**En el formulario** (`cambiarDeEsquema`), primero se deshace la regla del
+esquema anterior —cada campo vuelve a su valor habitual: el predeterminado
+técnico si lo tiene, o el inicial del formulario— y luego se aplica la del
+nuevo. Sin eso, elegir el 4a por error dejaría un garaje comunitario sin planta
+y con el contador en un CPM. Cuando el esquema llega ya puesto —un borrador, un
+expediente que se reabre— no se aplica nada: los datos mandan.
+
+**En los motores** (`conLoDelExpediente` / `con_lo_del_expediente`), un dato
+`mtd_<grupo>` del expediente sustituye, solo para él, la opción fijada en
+Configuración. Hoy se usa `mtd_ubicacion`. Viaja en los datos y no se deduce
+del esquema por dos razones: el motor de Python no ve el formulario, y un
+expediente 4a hecho antes de que esto existiera no lo trae, así que su MTD sale
+como salió (principio VI).
+
+Tres trampas que salieron al hacerlo:
+
+- **La planta volvía sola.** Un valor técnico que llega vacío recupera su
+  predeterminado, y la planta de un 4a reabierto era «-1» otra vez. Lo que el
+  esquema del expediente vacía se queda vacío.
+- **La planta vacía se colaba en los predeterminados.** *Guardar estos valores
+  como predeterminados* estando en 4a no guarda lo que el esquema vacía.
+- **`form.reset()` no vacía un campo oculto.** Para el navegador, el valor de
+  un `<input type="hidden">` *es* su valor inicial. Al vaciar el formulario
+  después de un 4a, el siguiente expediente —del esquema que fuera— seguía
+  marcando «CPM-Armario Fachada» en el MTD sin que se viera en ningún sitio.
+  Se borra a mano (`olvidarLoDelMtd`).
+
 ### Los municipios viajan dentro de la aplicación
 
 `docs/datos/municipios-madrid.json` lleva los 179 municipios de la provincia

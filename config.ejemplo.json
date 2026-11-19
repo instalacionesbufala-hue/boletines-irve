@@ -78,6 +78,23 @@
       "dif_intensidad": "25"
     }
   },
+  "por_esquema": {
+    "4a": {
+      "nota": "Vivienda unifamiliar: sin plaza ni planta, contador en CPM —también en el MTD—, garaje individual y línea desde el cuadro de la vivienda.",
+      "vaciar": [
+        "plaza_numero",
+        "plaza_planta"
+      ],
+      "poner": {
+        "ubicacion_contador": "Individual (CPM)",
+        "tipo_garaje": "INDIVIDUAL",
+        "origen_linea": "CUADRO GENERAL DE MANDO Y PROTECCIÓN DE LA VIVIENDA"
+      },
+      "mtd": {
+        "ubicacion": "CPM-Armario Fachada"
+      }
+    }
+  },
   "opciones": {
     "seccion": [
       "1.5",
