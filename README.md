@@ -62,8 +62,9 @@ Al juntar hay dos casos, y los trata distinto:
   publicado, porque las dos sellan el `?v=` en los mismos renglones. No es un
   conflicto de verdad: se resuelve solo y se vuelve a sellar todo con un sello
   único.
-- **Choca algo más.** Dos cambios distintos en el mismo trozo. Dice en qué
-  ficheros y pregunta si te quedas con lo de tu ordenador, con el **no por
+- **Choca algo más.** Dos cambios distintos en el mismo trozo, o un fichero que
+  una parte ha borrado y la otra ha cambiado. Dice en qué ficheros —solo los
+  que chocan de verdad, no los del sello— y pregunta si te quedas con lo de tu ordenador, con el **no por
   defecto**: quedarse con lo de aquí tira lo que hizo la otra parte en esos
   trozos, así que hay que decirlo a propósito. Si dices que no, no se sube
   nada y la carpeta se queda como estaba.
@@ -704,6 +705,58 @@ hoy, así que el documento ya no era el que se entregó. Ahora cada expediente
 guarda también la empresa, el instalador y los valores de los impresos que
 tenía, y al abrirlo se recuperan. Sale un aviso arriba y un botón para volver a
 tus datos de ahora; tu configuración guardada no se toca.
+
+### El enlace con el panel de Búfala
+
+Esta parte la hizo y la mantiene **otra sesión**, la del panel, por *pull
+request*. Aquí queda lo que hace la página con lo que le llega, para que quien
+toque un lado sepa qué espera el otro. Si cambia algo de esto, hay que avisar:
+*issue* `para-panel` en `instalacionesbufala-hue/panel-src`.
+
+**Lo que entra.** El panel abre la página con
+`#obra=<JSON en base64 de URL>`, y el JSON lleva `num`, `campos`, `avisos` y,
+para el aviso de vuelta, `firma` y `ret`. Va detrás de «#», así que el
+navegador no lo manda a ningún servidor. `cargarDesdeEnlace` hace, por este
+orden: vaciar el formulario, cargar `campos`, completar lo que pida el esquema,
+guardar el borrador, enseñar `avisos` y quitar el «#obra=» de la dirección.
+
+**`campos` va por nombre.** Cada clave es el `name` de un campo del formulario;
+la que no existe se ignora sin avisar. Por eso renombrar un campo rompe el
+enlace callando. Las casillas no se cargan, salvo `incluir_anexo_garaje` y
+`mismo_domicilio`.
+
+Lo que la página hace por su cuenta al cargar, y que el panel tiene que saber:
+
+| Qué | Qué pasa |
+|---|---|
+| Empresa que firma | Vaciar el formulario pone la **predeterminada** de Configuración. Una obra abierta desde el panel sale siempre con esa, hasta que se cambie en el desplegable. |
+| Valor técnico que no viene, o viene vacío | Se queda el predeterminado del instalador: sección, protecciones, planta «-1»… |
+| `descripcion_punto` | Es un valor técnico más, y el predeterminado nombra un cargador concreto. Si el de la obra es otro y el panel no lo manda, **saldrá el predeterminado** en la memoria, en el MTD y en el CIE. |
+| Titular empresa | Se reconoce por `titular_nif` (letra de persona jurídica) o, sin NIF, por `titular_nombre` (S.L., S.A., comunidad de propietarios…). La razón social va entera en `titular_nombre`, los apellidos dejan de ser obligatorios y pasan a serlo `repre_nif`, `repre_nombre` y `repre_apellido1`; están también `repre_apellido2` y `repre_email`. |
+| `esquema` con regla (`por_esquema`; hoy, el `4a`) | `completarConElEsquema` pone lo de la regla **solo en lo que el panel no ha mandado**: sin plaza ni planta, contador en CPM, garaje INDIVIDUAL, origen de la línea y `mtd_ubicacion`. Lo que el panel manda se respeta. |
+| `empl_localidad` sin `empl_cp` | El código postal **no** se deduce al cargar: solo al escribir el municipio a mano. |
+| `cp_localidad`, `cp_cp`, `cp_provincia` | Si no vienen, se copian de la dirección de la instalación. |
+| `cups` | Se comprueba al cargar y se avisa si está mal; al generar se pregunta. |
+
+**Lo que sale.** Al generar los documentos de una obra abierta desde el panel,
+`avisarPanel` manda a `ret` —solo se acepta una dirección
+`script.google.com/macros/s/…/exec`— el número de obra, la `firma` que venía en
+el enlace y el identificador del CIE. **Ningún dato del cliente.** Es la única
+salida automática de la aplicación; la otra, el callejero del IGN, va con
+botón. Si el aviso falla, se dice y la obra se marca a mano en el panel:
+generar no depende de él.
+
+**Para quien escriba aquí desde otra sesión:**
+
+- La lógica de los documentos está dos veces, en `docs/motor.js` y en
+  `nucleo.py`, y tienen que dar lo mismo. Un cambio en una va en la otra.
+- Antes de subir: `npm run comprobar`, `npm run comparar`, `npm run formato`.
+- Los impresos de `docs/plantillas/` no se tocan.
+- Los datos de prueba, inventados a la vista (`12345678Z`, `B00000000`): el
+  repositorio es público.
+- El sello `?v=` chocará con el de la otra parte en cada unión. Es normal; ver
+  «Cuando publica más de una sesión».
+- `chargebycesar/cie` es otra línea, sin nada de esto.
 
 ### El sello de versión
 

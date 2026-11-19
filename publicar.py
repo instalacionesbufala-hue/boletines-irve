@@ -249,16 +249,35 @@ def quitar_choques_de_sello(texto):
     return nuevo, "<<<<<<< " not in nuevo
 
 
+def _sin_choques_de_sello(f):
+    """El texto de un fichero en conflicto, con los choques de sello resueltos.
+
+    Devuelve None si le queda algun choque que no es de sello. Tambien cuando
+    el fichero no trae marcas: git lo da por chocado y sin marcas cuando una
+    sesion lo ha borrado y la otra lo ha cambiado, o cuando es binario, y nada
+    de eso es un sello.
+    """
+    try:
+        texto = io.open(os.path.join(RAIZ, f), encoding="utf-8", newline="").read()
+    except Exception:  # noqa: BLE001
+        return None                      # borrado, binario o ilegible
+    if "<<<<<<< " not in texto:
+        return None
+    nuevo, todos = quitar_choques_de_sello(texto)
+    return nuevo if todos else None
+
+
+def choques_de_verdad(ficheros):
+    """De los ficheros que chocan, los que chocan por algo mas que el sello."""
+    return [f for f in ficheros if _sin_choques_de_sello(f) is None]
+
+
 def resolver_solo_sellos(ficheros):
     """True si todo lo que chocaba eran sellos, y ya esta resuelto y anadido."""
     resueltos = {}
     for f in ficheros:
-        try:
-            texto = io.open(os.path.join(RAIZ, f), encoding="utf-8", newline="").read()
-        except Exception:  # noqa: BLE001
-            return False                 # binario o ilegible: eso no es un sello
-        nuevo, todos = quitar_choques_de_sello(texto)
-        if not todos:
+        nuevo = _sin_choques_de_sello(f)
+        if nuevo is None:
             return False
         resueltos[f] = nuevo
     for f, nuevo in resueltos.items():
@@ -313,7 +332,11 @@ def enviar():
                         "-m", "Junta lo que ya habia en GitHub", callado=True)
         if codigo != 0:
             _, chocan = git("diff", "--name-only", "--diff-filter=U", callado=True)
-            ficheros = [f for f in chocan.splitlines() if f.strip()]
+            # git mezcla sus avisos (los de finales de linea, por ejemplo) con
+            # la lista; un aviso tomado por fichero haria pasar por choque de
+            # verdad lo que solo es un sello
+            ficheros = [f for f in chocan.splitlines()
+                        if f.strip() and not f.startswith(("warning:", "hint:"))]
             if resolver_solo_sellos(ficheros):
                 # Lo unico que chocaba era el sello de version de cada sesion
                 git("commit", "--no-edit", callado=True)
@@ -325,7 +348,9 @@ def enviar():
                 aviso("""
                     Hay cambios de alla que chocan con los tuyos en:
                     """)
-                for f in ficheros[:10]:
+                # Los que solo chocan por el sello no se ensenan: no se pierde
+                # nada en ellos y alargarian la lista sin motivo.
+                for f in (choques_de_verdad(ficheros) or ficheros)[:10]:
                     print(f"     {f}")
                 aviso("""
                     Si te quedas con la version de tu ordenador, en esos

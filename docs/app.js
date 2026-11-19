@@ -8,10 +8,10 @@
 import { generarExpediente, valoresTecnicos, calcular, distribuidoraPorCups,
          mapaMtd, mapaAnexoIve, mapaUnifilar, mapaSolicitud, mapaAutorizacion,
          mapaAnexoGaraje, celdasCie, validarCups, esEmpresa,
-         aplicarOpciones, aplicarExtras } from "./motor.js?v=202611192144"
-import { identificador, estado } from "./cie.js?v=202611192144"
+         aplicarOpciones, aplicarExtras } from "./motor.js?v=202611192204"
+import { identificador, estado } from "./cie.js?v=202611192204"
 import { buscarCodigoPostal, claveCalle, codigoUnicoDe, codigosDe, esCodigoPostal,
-         indiceMunicipios, municipioDe, normalizar } from "./cp.js?v=202611192144";
+         indiceMunicipios, municipioDe, normalizar } from "./cp.js?v=202611192204";
 
 const $ = (s, raiz = document) => raiz.querySelector(s);
 const $$ = (s, raiz = document) => [...raiz.querySelectorAll(s)];
@@ -78,14 +78,14 @@ function guardarAjustes() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    CFG = await (await fetch("config-inicial.json?v=202611192144")).json();
+    CFG = await (await fetch("config-inicial.json?v=202611192204")).json();
   } catch (e) {
     $("#cargando").innerHTML = "<strong>No he podido cargar la configuración.</strong> "
       + "Recarga la página.";
     return;
   }
   try {
-    const municipios = await (await fetch("datos/municipios-madrid.json?v=202611192144")).json();
+    const municipios = await (await fetch("datos/municipios-madrid.json?v=202611192204")).json();
     INDICE_MUNICIPIOS = indiceMunicipios(municipios);
   } catch (e) {
     INDICE_MUNICIPIOS = new Map();   // se sigue pudiendo trabajar sin la lista
@@ -1438,7 +1438,7 @@ let CAMPOS_IMPRESOS = null;
 async function camposDelImpreso(archivo) {
   if (CAMPOS_IMPRESOS === null) {
     try {
-      CAMPOS_IMPRESOS = await (await fetch("plantillas/campos.json?v=202611192144")).json();
+      CAMPOS_IMPRESOS = await (await fetch("plantillas/campos.json?v=202611192204")).json();
     } catch (e) {
       CAMPOS_IMPRESOS = {};
     }
@@ -1460,7 +1460,7 @@ let REJILLA_CIE = null;
 
 async function mapaCie() {
   if (MAPA_CIE === null) {
-    try { MAPA_CIE = await (await fetch("plantillas/cie_mapa.json?v=202611192144")).json(); }
+    try { MAPA_CIE = await (await fetch("plantillas/cie_mapa.json?v=202611192204")).json(); }
     catch (e) { MAPA_CIE = {}; }
   }
   return MAPA_CIE;
