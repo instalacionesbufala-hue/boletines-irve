@@ -50,6 +50,24 @@ git remote set-url origin https://TU-USUARIO@github.com/TU-USUARIO/TU-REPOSITORI
 `publicar.py` reconoce ese error, dice con qué cuenta estás entrando y de quién
 es el repositorio, y se ofrece a cambiarlo él.
 
+### Cuando publica más de una sesión
+
+Si desde la última vez alguien más ha subido cambios al repositorio, GitHub
+rechaza el envío. `publicar.py` baja lo que hay allá, lo junta con lo de aquí
+y vuelve a subir. Nunca fuerza el envío.
+
+Al juntar hay dos casos, y los trata distinto:
+
+- **Solo choca el sello de versión.** Pasa siempre que las dos partes han
+  publicado, porque las dos sellan el `?v=` en los mismos renglones. No es un
+  conflicto de verdad: se resuelve solo y se vuelve a sellar todo con un sello
+  único.
+- **Choca algo más.** Dos cambios distintos en el mismo trozo. Dice en qué
+  ficheros y pregunta si te quedas con lo de tu ordenador, con el **no por
+  defecto**: quedarse con lo de aquí tira lo que hizo la otra parte en esos
+  trozos, así que hay que decirlo a propósito. Si dices que no, no se sube
+  nada y la carpeta se queda como estaba.
+
 ### Si prefieres hacerlo a mano
 
 ```bash

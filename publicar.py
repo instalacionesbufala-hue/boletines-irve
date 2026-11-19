@@ -225,6 +225,57 @@ def queda_por_enviar():
     return cuenta.strip() not in ("", "0")
 
 
+_SELLO = re.compile(r"\?v=[\w.-]+")
+_CHOQUE = re.compile(
+    r"<<<<<<< [^\n]*\r?\n(.*?)=======\r?\n(.*?)>>>>>>> [^\n]*\r?\n", re.S)
+
+
+def quitar_choques_de_sello(texto):
+    """Resuelve los choques que son solo el sello de version.
+
+    Devuelve (texto, todos): el texto con esos choques resueltos -se queda lo
+    de aqui, que se va a volver a sellar- y si con eso ya no queda ninguno.
+
+    Las dos sesiones que publican sellan la version, asi que las lineas del
+    ?v= chocan siempre que las dos han subido algo. Eso no es un conflicto: es
+    el mismo renglon con dos fechas.
+    """
+    def resolver(m):
+        aqui, alli = m.group(1), m.group(2)
+        if _SELLO.sub("", aqui) == _SELLO.sub("", alli):
+            return aqui
+        return m.group(0)
+    nuevo = _CHOQUE.sub(resolver, texto)
+    return nuevo, "<<<<<<< " not in nuevo
+
+
+def resolver_solo_sellos(ficheros):
+    """True si todo lo que chocaba eran sellos, y ya esta resuelto y anadido."""
+    resueltos = {}
+    for f in ficheros:
+        try:
+            texto = io.open(os.path.join(RAIZ, f), encoding="utf-8", newline="").read()
+        except Exception:  # noqa: BLE001
+            return False                 # binario o ilegible: eso no es un sello
+        nuevo, todos = quitar_choques_de_sello(texto)
+        if not todos:
+            return False
+        resueltos[f] = nuevo
+    for f, nuevo in resueltos.items():
+        io.open(os.path.join(RAIZ, f), "w", encoding="utf-8", newline="").write(nuevo)
+        git("add", "--", f, callado=True)
+    return True
+
+
+def sellar_tras_juntar():
+    """Deja un solo sello despues de juntar: cada sesion traia el suyo."""
+    sellar_version()
+    git("add", "-A", callado=True)
+    codigo, _ = git("diff", "--cached", "--quiet", callado=True)
+    if codigo != 0:
+        git("commit", "-m", "Sello de version tras juntar", callado=True)
+
+
 def enviar():
     """Sube la rama. Devuelve True si lo consigue.
 
@@ -251,32 +302,45 @@ def enviar():
         return False
 
     if "rejected" in bajo or "fetch first" in bajo or "non-fast-forward" in bajo:
-        titulo("En GitHub ya habia algo")
+        titulo("En GitHub hay cosas que no tienes aqui")
         aviso("""
-            El repositorio no estaba vacio. Suele pasar la primera vez,
-            porque GitHub crea un README al montarlo. Voy a juntar lo que
-            hay alla con lo de aqui y a subir otra vez.
+            Alguien ha subido cambios desde la ultima vez -otra sesion,
+            o GitHub al crear el repositorio-. Voy a juntar lo que hay
+            alla con lo de aqui y a subir otra vez.
             """)
         git("fetch", "origin", "main", callado=True)
         codigo, _ = git("merge", "origin/main", "--allow-unrelated-histories",
                         "-m", "Junta lo que ya habia en GitHub", callado=True)
         if codigo != 0:
-            # Algun archivo esta en los dos sitios y no coincide
             _, chocan = git("diff", "--name-only", "--diff-filter=U", callado=True)
-            aviso("""
-                Hay archivos que estan en los dos sitios y no coinciden:
-                """)
-            for f in chocan.splitlines()[:10]:
-                print(f"     {f}")
-            print()
-            if not si_o_no("Me quedo con la version de tu ordenador?"):
-                git("merge", "--abort", callado=True)
+            ficheros = [f for f in chocan.splitlines() if f.strip()]
+            if resolver_solo_sellos(ficheros):
+                # Lo unico que chocaba era el sello de version de cada sesion
+                git("commit", "--no-edit", callado=True)
+                print("  Solo chocaba el sello de version: resuelto.")
+            else:
+                # Aqui si hay dos cambios distintos en el mismo trozo. Quedarse
+                # con lo de este ordenador tira lo que hizo la otra sesion, asi
+                # que el no va por defecto y hay que decirlo a proposito.
+                aviso("""
+                    Hay cambios de alla que chocan con los tuyos en:
+                    """)
+                for f in ficheros[:10]:
+                    print(f"     {f}")
+                aviso("""
+                    Si te quedas con la version de tu ordenador, en esos
+                    trozos se pierde lo que se subio desde la otra sesion.
+                    """)
                 print()
-                print("  No se ha subido nada y tu carpeta se queda como estaba.")
-                return False
-            git("merge", "--abort", callado=True)
-            git("merge", "origin/main", "--allow-unrelated-histories", "-X", "ours",
-                "-m", "Junta lo que ya habia en GitHub, mandando lo de aqui")
+                if not si_o_no("Me quedo con la version de tu ordenador?", False):
+                    git("merge", "--abort", callado=True)
+                    print()
+                    print("  No se ha subido nada y tu carpeta se queda como estaba.")
+                    return False
+                git("merge", "--abort", callado=True)
+                git("merge", "origin/main", "--allow-unrelated-histories", "-X", "ours",
+                    "-m", "Junta lo que ya habia en GitHub, mandando lo de aqui")
+        sellar_tras_juntar()
         codigo, _ = git("push", "-u", "origin", "main")
         if codigo == 0:
             return True
