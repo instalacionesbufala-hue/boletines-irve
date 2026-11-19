@@ -1710,6 +1710,37 @@ def dibujar_protecciones(destino, protecciones):
     return puestos
 
 
+def con_lo_del_expediente(cfg, datos):
+    """Lo que ESTE expediente marca distinto de lo fijado en Configuracion.
+
+    En el MTD hay filas donde solo va una marca -la ubicacion de los
+    contadores, el emplazamiento, el tipo de puesta a tierra-, y cual se marca
+    se elige una vez en Configuracion. Pero una vivienda unifamiliar tiene el
+    contador en un CPM, no en una centralizacion, y eso no es un ajuste del
+    instalador: es de ese expediente. Asi que el expediente puede traer
+    `mtd_<grupo>` y manda el.
+
+    Viaja en los datos, no se deduce del esquema: un expediente hecho antes de
+    que esto existiera no lo trae, de modo que su MTD sale como salio.
+
+    Si lo que trae no es una opcion de ese grupo, se ignora.
+    """
+    grupos = (cfg.get("opciones_excluyentes") or {}).get("MTD.pdf") or {}
+    fijos = None
+    for clave, g in grupos.items():
+        suya = t((datos or {}).get("mtd_" + clave))
+        if not suya or suya not in (g.get("opciones") or {}):
+            continue
+        if fijos is None:
+            fijos = dict(cfg.get("valores_fijos_mtd") or {})
+        fijos[clave] = suya
+    if fijos is None:
+        return cfg
+    cfg = dict(cfg)
+    cfg["valores_fijos_mtd"] = fijos
+    return cfg
+
+
 def generar(datos, aplanar_mtd=True):
     """Genera el expediente entero.
 
@@ -1717,7 +1748,7 @@ def generar(datos, aplanar_mtd=True):
     usa herramientas/comparar.py: los dos motores aplanan con librerias
     distintas y el dibujo no sale igual, asi que se comparan antes de aplanar.
     """
-    cfg = cargar_config()
+    cfg = con_lo_del_expediente(cargar_config(), datos)
     preset = valores_tecnicos(datos, cfg)
     calc = calcular(datos, preset, cfg)
 
