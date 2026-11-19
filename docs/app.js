@@ -8,10 +8,10 @@
 import { generarExpediente, valoresTecnicos, calcular, distribuidoraPorCups,
          mapaMtd, mapaAnexoIve, mapaUnifilar, mapaSolicitud, mapaAutorizacion,
          mapaAnexoGaraje, celdasCie, validarCups, esEmpresa,
-         aplicarOpciones, aplicarExtras } from "./motor.js?v=202611041829"
-import { identificador, estado } from "./cie.js?v=202611041829"
+         aplicarOpciones, aplicarExtras } from "./motor.js?v=202611191800"
+import { identificador, estado } from "./cie.js?v=202611191800"
 import { buscarCodigoPostal, claveCalle, codigoUnicoDe, codigosDe, esCodigoPostal,
-         indiceMunicipios, municipioDe, normalizar } from "./cp.js?v=202611041829";
+         indiceMunicipios, municipioDe, normalizar } from "./cp.js?v=202611191800";
 
 const $ = (s, raiz = document) => raiz.querySelector(s);
 const $$ = (s, raiz = document) => [...raiz.querySelectorAll(s)];
@@ -78,14 +78,14 @@ function guardarAjustes() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    CFG = await (await fetch("config-inicial.json?v=202611041829")).json();
+    CFG = await (await fetch("config-inicial.json?v=202611191800")).json();
   } catch (e) {
     $("#cargando").innerHTML = "<strong>No he podido cargar la configuración.</strong> "
       + "Recarga la página.";
     return;
   }
   try {
-    const municipios = await (await fetch("datos/municipios-madrid.json?v=202611041829")).json();
+    const municipios = await (await fetch("datos/municipios-madrid.json?v=202611191800")).json();
     INDICE_MUNICIPIOS = indiceMunicipios(municipios);
   } catch (e) {
     INDICE_MUNICIPIOS = new Map();   // se sigue pudiendo trabajar sin la lista
@@ -113,6 +113,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   pintarExpedientes();
   ponerFechaHoy();
   restaurarBorrador();
+  cargarDesdeEnlace();
+  window.addEventListener("hashchange", cargarDesdeEnlace);
   ajustarRepresentante();
   copiarDireccionALaComunidad();
   avisarCups();
@@ -714,6 +716,10 @@ function mostrarResultado(r, datos) {
 
 $("#btn-limpiar").addEventListener("click", () => {
   if (!confirm("¿Vaciar todos los campos del formulario?")) return;
+  vaciarFormulario();
+});
+
+function vaciarFormulario() {
   if (MIRANDO_ANTIGUO) aplicarConfiguracion(configuracionGuardada(), false);
   // Vaciar es empezar de cero: vuelve a firmar la predeterminada.
   if (!MIRANDO_ANTIGUO && empresaPorId(CFG.empresa_predeterminada)) {
@@ -737,7 +743,56 @@ $("#btn-limpiar").addEventListener("click", () => {
   $("#resultado").hidden = true;
   avisarCups();
   recalcular();
-});
+}
+
+/* ══════════════ datos de una obra desde el panel ══════════════ */
+
+/* El panel de Búfala (lista de CIE pendientes) abre esta página con los datos
+   de la obra detrás de «#obra=» (JSON en base64 de URL). Lo que va detrás de «#»
+   no lo envía el navegador a ningún servidor, así que los datos siguen sin salir
+   del ordenador. Se empieza con el formulario vacío, se cargan los datos, se
+   enseña lo que falta y se quita el «#obra=» de la dirección para que recargar
+   la página no vuelva a pisar lo que se haya escrito. */
+function cargarDesdeEnlace() {
+  const m = location.hash.match(/^#obra=([A-Za-z0-9_-]+=*)$/);
+  if (!m) return;
+  history.replaceState(null, "", location.pathname + location.search);
+  let o;
+  try {
+    const b = atob(m[1].replace(/-/g, "+").replace(/_/g, "/"));
+    o = JSON.parse(new TextDecoder().decode(Uint8Array.from(b, c => c.charCodeAt(0))));
+  } catch (e) {
+    avisoObra("No he podido leer los datos del enlace del panel. Vuelve a abrirlo desde el panel.", []);
+    return;
+  }
+  if (!o || typeof o.campos !== "object") return;
+  vaciarFormulario();
+  cargarDatos(o.campos, false);
+  guardarBorrador();
+  avisoObra("Datos de la obra " + (o.num || "") + " cargados desde el panel.", Array.isArray(o.avisos) ? o.avisos : []);
+}
+
+function avisoObra(texto, faltan) {
+  let caja = $("#aviso-obra");
+  if (!caja) {
+    caja = document.createElement("div");
+    caja.id = "aviso-obra";
+    caja.className = "avisos";
+    form.prepend(caja);
+  }
+  caja.replaceChildren();
+  const t = document.createElement("strong");
+  t.textContent = texto;
+  caja.append(t);
+  if (faltan.length) {
+    const p = document.createElement("p");
+    p.textContent = "Revisa o completa:";
+    const ul = document.createElement("ul");
+    faltan.forEach(x => { const li = document.createElement("li"); li.textContent = x; ul.append(li); });
+    caja.append(p, ul);
+  }
+  caja.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 /* ══════════════ expedientes ══════════════ */
 
@@ -1200,7 +1255,7 @@ let CAMPOS_IMPRESOS = null;
 async function camposDelImpreso(archivo) {
   if (CAMPOS_IMPRESOS === null) {
     try {
-      CAMPOS_IMPRESOS = await (await fetch("plantillas/campos.json?v=202611041829")).json();
+      CAMPOS_IMPRESOS = await (await fetch("plantillas/campos.json?v=202611191800")).json();
     } catch (e) {
       CAMPOS_IMPRESOS = {};
     }
@@ -1222,7 +1277,7 @@ let REJILLA_CIE = null;
 
 async function mapaCie() {
   if (MAPA_CIE === null) {
-    try { MAPA_CIE = await (await fetch("plantillas/cie_mapa.json?v=202611041829")).json(); }
+    try { MAPA_CIE = await (await fetch("plantillas/cie_mapa.json?v=202611191800")).json(); }
     catch (e) { MAPA_CIE = {}; }
   }
   return MAPA_CIE;
