@@ -242,6 +242,9 @@ export function calcular(datos, tec, cfg) {
 
 const RENGLONES_MEMORIA = 23;
 const ANCHO_MEMORIA = 74;
+/* Renglón de la «Información adicional» del CIE (celda A28, centrada, negrita
+   de 7,41 puntos): caben unos 100 caracteres de margen a margen. */
+const ANCHO_INFO = 90;
 
 function partir(texto, ancho) {
   const palabras = String(texto).split(/\s+/).filter(Boolean);
@@ -757,16 +760,21 @@ export function celdasCie(datos, cfg, tec, calc) {
   const { corta } = partesFecha(datos.fecha);
   const distribuidora = t(datos.distribuidora) || distribuidoraPorCups(datos.cups, cfg);
 
+  // «Información adicional». El punto de recarga va en su propio renglón y
+  // cada renglón se parte a ANCHO_INFO: con un cargador de nombre largo
+  // («PUNTO DE RECARGA VE TIPO 2 V2C TRYDAN MONOFÁSICO CON PROTECCIONES M5 +
+  // BOTÓN TESLA») el segundo renglón se salía del papel por los dos lados,
+  // porque esta celda no tiene nada impreso a la derecha que la limite.
   const info = [
     `IRVE DE USO ${(t(datos.uso_irve) || "PRIVADO").toUpperCase()} EN GARAJE `
       + `${(t(datos.tipo_garaje) || "COMUNITARIO").toUpperCase()} `
       + `${(t(datos.ubicacion_fisica) || "INTERIOR").toUpperCase()}`,
     `Nº DE PUNTOS DE CONEXIÓN: ${t(datos.num_puntos) || "1"}, `
-      + `ESQUEMA ${t(datos.esquema) || "2"}. `
-      + `${(t(tec.descripcion_punto) || "CONECTOR TIPO 2 MENNEKES").toUpperCase()}`,
+      + `ESQUEMA ${t(datos.esquema) || "2"}.`,
+    `${(t(tec.descripcion_punto) || "CONECTOR TIPO 2 MENNEKES").toUpperCase()}`,
     // lo que lleve el cuadro ademas del general y el diferencial
     ...proteccionesExtra(tec, cfg).map(textoProteccion),
-  ].filter(Boolean).join("\n");
+  ].filter(Boolean).flatMap(l => partir(l, ANCHO_INFO)).join("\n");
 
   return {
     B7: t(datos.titular_nif), H7: t(datos.titular_apellido1), P7: t(datos.titular_apellido2),
