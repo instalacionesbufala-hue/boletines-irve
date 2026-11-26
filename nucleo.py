@@ -985,6 +985,7 @@ def mapa_mtd(datos, cfg, preset, calc):
 # Texto1612) de unos 428 puntos de ancho, donde caben unos 74 caracteres.
 RENGLONES_MEMORIA = 23
 ANCHO_MEMORIA = 74
+ANCHO_INFO = 90  # renglón de la «Información adicional» del CIE
 
 
 def protecciones_extra(preset, cfg):
@@ -1342,11 +1343,13 @@ def celdas_cie(datos, cfg, preset, calc):
         f"{t(datos.get('tipo_garaje', 'COMUNITARIO')).upper()} "
         f"{t(datos.get('ubicacion_fisica', 'INTERIOR')).upper()}",
         f"Nº DE PUNTOS DE CONEXIÓN: {t(datos.get('num_puntos', '1'))}, "
-        f"ESQUEMA {t(datos.get('esquema', '2'))}. "
+        f"ESQUEMA {t(datos.get('esquema', '2'))}.",
+        # el punto de recarga en su renglón, y cada renglón partido a
+        # ANCHO_INFO: un cargador de nombre largo se salía del papel
         f"{(t(preset.get('descripcion_punto')) or 'CONECTOR TIPO 2 MENNEKES').upper()}",
         # lo que lleve el cuadro ademas del general y el diferencial
         *[texto_proteccion(p) for p in protecciones_extra(preset, cfg)],
-    ] if x)
+    ] if x for x in (textwrap.wrap(x, width=ANCHO_INFO) or [x]))
 
     return {
         # --- titular ---

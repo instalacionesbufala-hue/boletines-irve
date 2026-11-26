@@ -64,6 +64,11 @@ export function estado(mapa, celdas) {
    la hoja de cálculo deja correr la empresa distribuidora media hoja. */
 function sitioQueHay(sitio) {
   const izq = sitio.izq ?? 0, der = sitio.der ?? 0;
+  // Centrada y sin nada a la derecha (la «Información adicional», A28): el
+  // texto se reparte a los dos lados del centro, así que lo que hay a la
+  // izquierda manda también a la derecha. Sin esto no se encogía nunca y un
+  // renglón largo se salía del papel por los dos lados.
+  if (sitio.alineacion === "centro" && der > 1000 && sitio.x > izq) return 2 * (sitio.x - izq);
   if (!(der > izq) || der > 1000) return 0;
   if (sitio.alineacion === "centro") return 2 * Math.min(sitio.x - izq, der - sitio.x);
   if (sitio.alineacion === "derecha") return sitio.x - izq;
